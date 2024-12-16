@@ -1,0 +1,3 @@
+G:\ITEGER\staż\BhpReader\BHPReader.pdb
+G:\ITEGER\staż\BhpReader\Microsoft.Data.SqlClient.SNI.dll
+G:\ITEGER\staż\BhpReader\BHPReader.exe
