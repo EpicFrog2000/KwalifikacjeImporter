@@ -2,3 +2,5 @@ W bazie nie ma pracownika o akronimie 54570, NIEZGODZIŃSKI, MACIEJ
 W bazie nie ma pracownika o akronimie 58298, STARAHINA, LILIIA
 W bazie nie ma pracownika o akronimie 20669, TOMCZYK, WOJCIECH
 W bazie nie ma pracownika o akronimie 20669, TOMCZYK, WOJCIECH
+Could not find a part of the path 'G:\ITEGER\staż\BhpReader\BHPReader\bin\Debug\net8.0\Files'. W pliku: G:\ITEGER\staż\BhpReader\BHPReader\bin\Debug\net8.0\Files
+Could not find a part of the path 'G:\ITEGER\staż\BhpReader\BHPReader\bin\Debug\net8.0\Files'. W pliku: G:\ITEGER\staż\BhpReader\BHPReader\bin\Debug\net8.0\Files

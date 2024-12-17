@@ -61,3 +61,4 @@ G:\ITEGER\staż\BhpReader\BHPReader\obj\Release\net8.0\refint\BHPReader.dll
 G:\ITEGER\staż\BhpReader\BHPReader\obj\Release\net8.0\BHPReader.pdb
 G:\ITEGER\staż\BhpReader\BHPReader\obj\Release\net8.0\BHPReader.genruntimeconfig.cache
 G:\ITEGER\staż\BhpReader\BHPReader\obj\Release\net8.0\ref\BHPReader.dll
+G:\ITEGER\staż\BhpReader\BHPReader\obj\Release\net8.0\BHPReader.sourcelink.json

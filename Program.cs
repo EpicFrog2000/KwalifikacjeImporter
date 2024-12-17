@@ -7,7 +7,7 @@ namespace BHPReader
     static class ConfigReader{
         public class Config_Data_Json
         {
-            public string Folder_With_Files { get; set; } = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Files");
+            public string[] Folders_With_Files { get; set; } = { Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Files") };
             public string ConnectionString { get; set; } = string.Empty;
         }
         public static void Get_Config_From_File()
@@ -17,7 +17,7 @@ namespace BHPReader
             var config = JsonSerializer.Deserialize<Config_Data_Json>(json);
             if (config != null)
             {
-                Program.Folder_With_Files = config.Folder_With_Files;
+                Program.Folders_With_Files = config.Folders_With_Files;
                 Program.ConnectionString = config.ConnectionString;
             }
         }
@@ -27,7 +27,7 @@ namespace BHPReader
                 File.Create(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Config.json")).Dispose();
                 var defaultConfig = new Config_Data_Json()
                 {
-                    Folder_With_Files = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Files") ,
+                    Folders_With_Files = {},
                     ConnectionString = Program.ConnectionString
                 };
                 File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Config.json"), JsonSerializer.Serialize(defaultConfig, new JsonSerializerOptions { WriteIndented = true }));
@@ -36,7 +36,7 @@ namespace BHPReader
     }
     internal class Program
     {
-        public static string Folder_With_Files = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Files");
+        public static string[] Folders_With_Files = { Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Files") };
         public static string ConnectionString = "Server=ITEGER-NT;Database=CDN_Wars_Test_4;User Id=sa;Password=cdn;Encrypt=True;TrustServerCertificate=True;";
         abstract class BaseInfo
         {
@@ -205,35 +205,42 @@ INSERT INTO [CDN].[Uprawnienia]
         }
         public static int Main()
         {
+            string cf = "";
+            string cp = "";
             try
             {
                 ConfigReader.Get_Config_From_File();
-                var ListyList = new List<List<BaseInfo>>();
-                foreach (var path in Directory.GetFiles(Folder_With_Files))
+                foreach (var folder in Folders_With_Files)
                 {
-                    if (!path.Contains(".txt"))
+                    cf = folder;
+                    var ListyList = new List<List<BaseInfo>>();
+                    foreach (var path in Directory.GetFiles(folder))
                     {
-                        Console.WriteLine($"Czyanie pliku {path}");
-                        IXLWorkbook workbook = new XLWorkbook(path);
-                        foreach (var worksheet in workbook.Worksheets)
+                        cp = path;
+                        if (!path.Contains(".txt"))
                         {
-                            var listadanych = ReadZakladka(worksheet, Get_Typ_Zakladki(worksheet));
-                            if (listadanych.Count > 0)
+                            Console.WriteLine($"Czyanie pliku {path}");
+                            IXLWorkbook workbook = new XLWorkbook(path);
+                            foreach (var worksheet in workbook.Worksheets)
                             {
-                                ListyList.Add(listadanych);
+                                var listadanych = ReadZakladka(worksheet, Get_Typ_Zakladki(worksheet));
+                                if (listadanych.Count > 0)
+                                {
+                                    ListyList.Add(listadanych);
+                                }
                             }
                         }
                     }
-                }
-                if(ListyList.Count > 0)
-                {
-                    Console.WriteLine($"Insering data to db ...");
-                    Insert_To_Db(ListyList);
+                    if (ListyList.Count > 0)
+                    {
+                        Console.WriteLine($"Insering data to db ...");
+                        Insert_To_Db(ListyList, cf, cp);
+                    }
                 }
             }
             catch (Exception ex)
             {
-                SaveErrorToFile(ex.Message);
+                SaveErrorToFile(ex.Message, cf, cp);
                 Console.WriteLine(ex.Message);
             }
             return 0;
@@ -290,7 +297,7 @@ INSERT INTO [CDN].[Uprawnienia]
             }
             return result;
         }
-        private static void Insert_To_Db(List<List<BaseInfo>> Objects)
+        private static void Insert_To_Db(List<List<BaseInfo>> Objects,string cp, string cf)
         {
             using (SqlConnection connection = new SqlConnection(ConnectionString))
             {
@@ -309,7 +316,7 @@ INSERT INTO [CDN].[Uprawnienia]
                             }
                             else
                             {
-                                SaveErrorToFile($"W bazie nie ma pracownika o akronimie {Data.Kod}, {Data.Nazwisko}, {Data.Imie}");
+                                SaveErrorToFile($"W bazie nie ma pracownika o akronimie {Data.Kod}, {Data.Nazwisko}, {Data.Imie} w pliku {cf}", cf, cp);
                                 Console.WriteLine($"W bazie nie ma pracownika o akronimie {Data.Kod}, {Data.Nazwisko}, {Data.Imie}");
                             }
                         }
@@ -318,11 +325,11 @@ INSERT INTO [CDN].[Uprawnienia]
                             Console.WriteLine(ex.Message);
                             throw;
                         }
-
                     }
                 }
                 transaction.Commit();
                 connection.Close();
+                Console.WriteLine("Poprawnie dodano dane do bazy");
             }
         }
         private static int? Czy_Istnieje_Pracownik(int Kod)
@@ -351,13 +358,15 @@ INSERT INTO [CDN].[Uprawnienia]
                 throw;
             }
         }
-        private static void SaveErrorToFile(string Value){
+        private static void SaveErrorToFile(string Value, string nazwaPlkiu, string savePath){
             try{
-                var filePath = Path.Combine(Folder_With_Files, "Errors.txt");
-                if (!File.Exists(filePath)){
-                    File.Create(filePath);
+                var filePath = Path.Combine(savePath, "Errors.txt");
+                if (!File.Exists(filePath))
+                {
+                    var fs = File.Create(filePath);
+                    fs.Dispose();
                 }
-                File.AppendAllText(filePath, Value + Environment.NewLine);
+                File.AppendAllText(filePath, Value + " W pliku: " + nazwaPlkiu  + Environment.NewLine);
             }catch(Exception ex)
             {
                 Console.WriteLine("Błąd zapisywania errora do pliku: " + ex.Message);

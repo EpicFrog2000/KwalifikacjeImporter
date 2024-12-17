@@ -1,4 +1,6 @@
 {
-  "Folder_With_Files": "G:\\ITEGER\\staż\\BhpReader\\Files",
+  "Folders_With_Files": [
+    "G:\\ITEGER\\staż\\BhpReader\\Files"
+  ],
   "ConnectionString": "Server=ITEGER-NT;Database=CDN_Wars_Test_4;User Id=sa;Password=cdn;Encrypt=True;TrustServerCertificate=True;"
 }
