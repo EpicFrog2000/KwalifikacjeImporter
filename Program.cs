@@ -44,7 +44,7 @@ namespace BHPReader
             public string Nazwisko { get; set; } = "";
             public string Imie { get; set; } = "";
             public abstract void Load_Info_From_Values(string lp, string kod, string nazwisko, string imie, string? val1, string? val2, string? val3, string? val4);
-            public abstract void Make_Insert_Command(int KodPrac, SqlTransaction transaction, SqlConnection connection);
+            public abstract void Make_Insert_Command(SqlTransaction transaction, SqlConnection connection, string cp, string cf);
         }
         class Kwalifikacje : BaseInfo
         {
@@ -62,9 +62,12 @@ namespace BHPReader
                 Data_zakonczenia = DateTime.TryParse(val3, out var dataZak) ? dataZak : DateTime.MinValue;
                 Data_waznosci = DateTime.TryParse(val4, out var dataWazn) ? dataWazn : DateTime.MinValue;
             }
-            public override void Make_Insert_Command(int KodPrac, SqlTransaction transaction, SqlConnection connection)
+            public override void Make_Insert_Command(SqlTransaction transaction, SqlConnection connection, string cp, string cf)
             {
-                string sqlQuery = @"DECLARE @DkmId INT = (select DKM_DkmId from cdn.DaneKadMod where DKM_Nazwa like @Nazwa_szkolenia)
+                var KodPrac = Czy_Istnieje_Pracownik(Kod);
+                if (KodPrac != null)
+                {
+                    string sqlQuery = @"DECLARE @DkmId INT = (select DKM_DkmId from cdn.DaneKadMod where DKM_Nazwa like @Nazwa_szkolenia)
 IF @DkmId is null
 BEGIN
 INSERT INTO [CDN].[DaneKadMod]
@@ -136,16 +139,22 @@ INSERT INTO [CDN].[Uprawnienia]
            ,'Administrator'
            ,'ADMIN'
            ,'Administrator');";
-                using (SqlCommand insertCmd = new SqlCommand(sqlQuery, connection, transaction))
+                    using (SqlCommand insertCmd = new SqlCommand(sqlQuery, connection, transaction))
+                    {
+                        insertCmd.Parameters.AddWithValue("@Kod", KodPrac);
+                        insertCmd.Parameters.AddWithValue("@Nazwisko", Nazwisko);
+                        insertCmd.Parameters.AddWithValue("@Imie", Imie);
+                        insertCmd.Parameters.AddWithValue("@Nazwa_szkolenia", Nazwa_szkolenia);
+                        insertCmd.Parameters.AddWithValue("@Data_rozpoczecia", Data_rozpoczecia == DateTime.MinValue ? (object)DBNull.Value : Data_rozpoczecia);
+                        insertCmd.Parameters.AddWithValue("@Data_zakonczenia", Data_zakonczenia == DateTime.MinValue ? (object)DBNull.Value : Data_zakonczenia);
+                        insertCmd.Parameters.AddWithValue("@Data_waznosci ", Data_waznosci == DateTime.MinValue ? (object)DBNull.Value : Data_waznosci);
+                        insertCmd.ExecuteScalar();
+                    }
+                }
+                else
                 {
-                    insertCmd.Parameters.AddWithValue("@Kod", KodPrac);
-                    insertCmd.Parameters.AddWithValue("@Nazwisko", Nazwisko);
-                    insertCmd.Parameters.AddWithValue("@Imie", Imie);
-                    insertCmd.Parameters.AddWithValue("@Nazwa_szkolenia", Nazwa_szkolenia);
-                    insertCmd.Parameters.AddWithValue("@Data_rozpoczecia", Data_rozpoczecia == DateTime.MinValue ? (object)DBNull.Value : Data_rozpoczecia);
-                    insertCmd.Parameters.AddWithValue("@Data_zakonczenia", Data_zakonczenia == DateTime.MinValue ? (object)DBNull.Value : Data_zakonczenia);
-                    insertCmd.Parameters.AddWithValue("@Data_waznosci ", Data_waznosci == DateTime.MinValue ? (object)DBNull.Value : Data_waznosci);
-                    insertCmd.ExecuteScalar();
+                    SaveErrorToFile($"W bazie nie ma pracownika o akronimie {Kod}, {Nazwisko}, {Imie} z pliku {cf}" , cf, cp);
+                    Console.WriteLine($"W bazie nie ma pracownika o akronimie {Kod}, {Nazwisko}, {Imie} z pliku {cf}");
                 }
             }
         }
@@ -161,7 +170,7 @@ INSERT INTO [CDN].[Uprawnienia]
                 Dni = int.TryParse(val1, out var dni) ? dni : 0;
                 Godziny = int.TryParse(val2, out var godz) ? godz : 0;
             }
-            public override void Make_Insert_Command(int KodPrac, SqlTransaction transaction, SqlConnection connection)
+            public override void Make_Insert_Command(SqlTransaction transaction, SqlConnection connection, string cp, string cf)
             {
                 return;
                 /*string sqlQuery = "";
@@ -188,7 +197,7 @@ INSERT INTO [CDN].[Uprawnienia]
                 Data_przystapienia = DateTime.TryParse(val1, out var dataPry) ? dataPry : DateTime.MinValue;
                 Data_wystapienia = DateTime.TryParse(val2, out var dataWps) ? dataWps : DateTime.MinValue;
             }
-            public override void Make_Insert_Command(int KodPrac, SqlTransaction transaction, SqlConnection connection)
+            public override void Make_Insert_Command(SqlTransaction transaction, SqlConnection connection, string cp, string cf)
             {
                 return;
                 /*string sqlQuery = "";
@@ -310,7 +319,7 @@ INSERT INTO [CDN].[Uprawnienia]
             }
             return result;
         }
-        private static void Insert_To_Db(List<List<BaseInfo>> Objects, string cp, string cf)
+        private static void Insert_To_Db(List<List<BaseInfo>> Objects, string cf, string cp)
         {
             using (SqlConnection connection = new SqlConnection(ConnectionString))
             {
@@ -322,16 +331,7 @@ INSERT INTO [CDN].[Uprawnienia]
                     {
                         try
                         {
-                            var KodPrac = Czy_Istnieje_Pracownik(Data.Kod);
-                            if (KodPrac != null)
-                            {
-                                Data.Make_Insert_Command((int)KodPrac, transaction, connection);
-                            }
-                            else
-                            {
-                                SaveErrorToFile($"W bazie nie ma pracownika o akronimie {Data.Kod}, {Data.Nazwisko}, {Data.Imie} z pliku {cf}", cf, cp);
-                                Console.WriteLine($"W bazie nie ma pracownika o akronimie {Data.Kod}, {Data.Nazwisko}, {Data.Imie} z pliku {cf}");
-                            }
+                            Data.Make_Insert_Command(transaction, connection, cf, cp);
                         }
                         catch (Exception ex)
                         {
