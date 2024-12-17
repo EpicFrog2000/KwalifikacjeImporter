@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("BHPReader")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d530feb8d28436ee1236a4e6f82f0bff9e5c30ec")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7a9be640e0d302094bf4d3f9ebd1fe942747e6b4")]
 [assembly: System.Reflection.AssemblyProductAttribute("BHPReader")]
 [assembly: System.Reflection.AssemblyTitleAttribute("BHPReader")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -203,6 +203,22 @@ INSERT INTO [CDN].[Uprawnienia]
                 }*/
             }
         }
+        private static void Usun_Ukryte_Karty(XLWorkbook workbook)
+        {
+            var hiddenSheets = new List<IXLWorksheet>();
+            foreach (var sheet in workbook.Worksheets)
+            {
+                if (sheet.Visibility == XLWorksheetVisibility.Hidden)
+                {
+                    hiddenSheets.Add(sheet);
+                }
+            }
+            foreach (var sheet in hiddenSheets)
+            {
+                workbook.Worksheets.Delete(sheet.Name);
+            }
+            workbook.Save();
+        }
         public static int Main()
         {
             string cf = "";
@@ -219,8 +235,9 @@ INSERT INTO [CDN].[Uprawnienia]
                         cp = path;
                         if (!path.Contains(".txt"))
                         {
-                            Console.WriteLine($"Czyanie pliku {path}");
-                            IXLWorkbook workbook = new XLWorkbook(path);
+                            Console.WriteLine($"Czytanie pliku {path}");
+                            XLWorkbook workbook = new XLWorkbook(path);
+                            Usun_Ukryte_Karty(workbook);
                             foreach (var worksheet in workbook.Worksheets)
                             {
                                 var listadanych = ReadZakladka(worksheet, Get_Typ_Zakladki(worksheet));
@@ -262,42 +279,38 @@ INSERT INTO [CDN].[Uprawnienia]
             }
             return 0;
         }
-        private static List<BaseInfo>  ReadZakladka(IXLWorksheet worksheet, int Typ)
+        private static List<BaseInfo> ReadZakladka(IXLWorksheet worksheet, int Typ)
         {
-            BaseInfo CreateInstance()
-            {
-                return Typ switch
-                {
-                    1 => new PPK(),
-                    2 => new LimityNiobecnosci(),
-                    3 => new Kwalifikacje(),
-                    _ => throw new ArgumentException("Nierozpoznany typ zakładki")
-                };
-            }
             var result = new List<BaseInfo>();
             int i = 2;
-            while (true)
+            if (Typ == 3)
             {
-                var Lp = worksheet.Cell(i, 1).GetFormattedString().Trim();
-                if (string.IsNullOrEmpty(Lp))
+                while (true)
                 {
-                    break;
+                    if (worksheet.Row(i).IsHidden == false)
+                    {
+                        var Lp = worksheet.Cell(i, 1).GetFormattedString().Trim();
+                        if (string.IsNullOrEmpty(Lp))
+                        {
+                            break;
+                        }
+                        var Kod = worksheet.Cell(i, 2).GetFormattedString().Trim();
+                        var Nazwisko = worksheet.Cell(i, 3).GetFormattedString().Trim();
+                        var Imie = worksheet.Cell(i, 4).GetFormattedString().Trim();
+                        var val1 = worksheet.Cell(i, 5).GetFormattedString().Trim();
+                        var val2 = worksheet.Cell(i, 6).GetFormattedString().Trim();
+                        var val3 = worksheet.Cell(i, 7).GetFormattedString().Trim();
+                        var val4 = worksheet.Cell(i, 8).GetFormattedString().Trim();
+                        var obj = new Kwalifikacje();
+                        obj.Load_Info_From_Values(Lp, Kod, Nazwisko, Imie, val1, val2, val3, val4);
+                        result.Add(obj);
+                    }
+                    i++;
                 }
-                var Kod = worksheet.Cell(i, 2).GetFormattedString().Trim();
-                var Nazwisko = worksheet.Cell(i, 3).GetFormattedString().Trim();
-                var Imie = worksheet.Cell(i, 4).GetFormattedString().Trim();
-                var val1 = worksheet.Cell(i, 5).GetFormattedString().Trim();
-                var val2 = worksheet.Cell(i, 6).GetFormattedString().Trim();
-                var val3 = worksheet.Cell(i, 7).GetFormattedString().Trim();
-                var val4 = worksheet.Cell(i, 8).GetFormattedString().Trim();
-                var obj = CreateInstance();
-                obj.Load_Info_From_Values(Lp, Kod, Nazwisko, Imie, val1, val2, val3, val4);
-                result.Add(obj);
-                i++;
             }
             return result;
         }
-        private static void Insert_To_Db(List<List<BaseInfo>> Objects,string cp, string cf)
+        private static void Insert_To_Db(List<List<BaseInfo>> Objects, string cp, string cf)
         {
             using (SqlConnection connection = new SqlConnection(ConnectionString))
             {
@@ -316,11 +329,11 @@ INSERT INTO [CDN].[Uprawnienia]
                             }
                             else
                             {
-                                SaveErrorToFile($"W bazie nie ma pracownika o akronimie {Data.Kod}, {Data.Nazwisko}, {Data.Imie} w pliku {cf}", cf, cp);
-                                Console.WriteLine($"W bazie nie ma pracownika o akronimie {Data.Kod}, {Data.Nazwisko}, {Data.Imie}");
+                                SaveErrorToFile($"W bazie nie ma pracownika o akronimie {Data.Kod}, {Data.Nazwisko}, {Data.Imie} z pliku {cf}", cf, cp);
+                                Console.WriteLine($"W bazie nie ma pracownika o akronimie {Data.Kod}, {Data.Nazwisko}, {Data.Imie} z pliku {cf}");
                             }
                         }
-                        catch(Exception ex)
+                        catch (Exception ex)
                         {
                             Console.WriteLine(ex.Message);
                             throw;
@@ -358,16 +371,16 @@ INSERT INTO [CDN].[Uprawnienia]
                 throw;
             }
         }
-        private static void SaveErrorToFile(string Value, string nazwaPlkiu, string savePath){
-            try{
+        private static void SaveErrorToFile(string Value, string nazwaPlkiu, string savePath) {
+            try {
                 var filePath = Path.Combine(savePath, "Errors.txt");
                 if (!File.Exists(filePath))
                 {
                     var fs = File.Create(filePath);
                     fs.Dispose();
                 }
-                File.AppendAllText(filePath, Value + " W pliku: " + nazwaPlkiu  + Environment.NewLine);
-            }catch(Exception ex)
+                File.AppendAllText(filePath, Value + " z pliku: " + nazwaPlkiu + Environment.NewLine);
+            } catch (Exception ex)
             {
                 Console.WriteLine("Błąd zapisywania errora do pliku: " + ex.Message);
             }
