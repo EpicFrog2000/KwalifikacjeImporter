@@ -4,7 +4,8 @@ using System.Text.Json;
 
 namespace BHPReader
 {
-    static class ConfigReader{
+    static class ConfigReader
+    {
         public class Config_Data_Json
         {
             public string[] Folders_With_Files { get; set; } = { Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Files") };
@@ -38,13 +39,13 @@ namespace BHPReader
     {
         public static string[] Folders_With_Files = { Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Files") };
         public static string ConnectionString = "Server=ITEGER-NT;Database=CDN_Wars_Test_4;User Id=sa;Password=cdn;Encrypt=True;TrustServerCertificate=True;";
-        abstract class BaseInfo
+        class BaseInfo
         {
-            public int Kod { get; set; } = 0;
+            public int Kod { get; set; } = -1;
             public string Nazwisko { get; set; } = "";
             public string Imie { get; set; } = "";
-            public abstract void Load_Info_From_Values(string lp, string kod, string nazwisko, string imie, string? val1, string? val2, string? val3, string? val4);
-            public abstract void Make_Insert_Command(SqlTransaction transaction, SqlConnection connection, string cp, string cf);
+            public virtual void Load_Info_From_Values(string lp, string kod, string nazwisko, string imie, string? val1, string? val2, string? val3, string? val4) { }
+            public virtual void Make_Insert_Command(SqlTransaction transaction, SqlConnection connection, string folder, string file_path) { }
         }
         class Kwalifikacje : BaseInfo
         {
@@ -62,7 +63,7 @@ namespace BHPReader
                 Data_zakonczenia = DateTime.TryParse(val3, out var dataZak) ? dataZak : DateTime.MinValue;
                 Data_waznosci = DateTime.TryParse(val4, out var dataWazn) ? dataWazn : DateTime.MinValue;
             }
-            public override void Make_Insert_Command(SqlTransaction transaction, SqlConnection connection, string cp, string cf)
+            public override void Make_Insert_Command(SqlTransaction transaction, SqlConnection connection, string folder, string file_path)
             {
                 var KodPrac = Czy_Istnieje_Pracownik(Kod);
                 if (KodPrac != null)
@@ -153,8 +154,7 @@ INSERT INTO [CDN].[Uprawnienia]
                 }
                 else
                 {
-                    SaveErrorToFile($"W bazie nie ma pracownika o akronimie {Kod}, {Nazwisko}, {Imie} z pliku {cf}" , cf, cp);
-                    Console.WriteLine($"W bazie nie ma pracownika o akronimie {Kod}, {Nazwisko}, {Imie} z pliku {cf}");
+                    throw new Exception($"W bazie nie ma pracownika o akronimie {Kod}, {Nazwisko}, {Imie} z pliku {file_path}");
                 }
             }
         }
@@ -230,18 +230,18 @@ INSERT INTO [CDN].[Uprawnienia]
         }
         public static int Main()
         {
-            string cf = "";
-            string cp = "";
+            string current_folder = "";
+            string current_file_path = "";
             try
             {
                 ConfigReader.Get_Config_From_File();
                 foreach (var folder in Folders_With_Files)
                 {
-                    cf = folder;
+                    current_folder = folder;
                     var ListyList = new List<List<BaseInfo>>();
                     foreach (var path in Directory.GetFiles(folder))
                     {
-                        cp = path;
+                        current_file_path = path;
                         if (!path.Contains(".txt"))
                         {
                             Console.WriteLine($"Czytanie pliku {path}");
@@ -256,20 +256,82 @@ INSERT INTO [CDN].[Uprawnienia]
                                 }
                             }
                         }
+                            MoveProcessedFile(current_file_path, current_folder);
                     }
                     if (ListyList.Count > 0)
                     {
                         Console.WriteLine($"Insering data to db ...");
-                        Insert_To_Db(ListyList, cf, cp);
+                        var NieWpisaneDane = Insert_To_Db(ListyList, current_folder, current_file_path);
+                        Save_Bad_Data(NieWpisaneDane, current_folder);
                     }
                 }
             }
             catch (Exception ex)
             {
-                SaveErrorToFile(ex.Message, cf, cp);
+                SaveErrorToFile(ex.Message, current_folder, current_file_path);
                 Console.WriteLine(ex.Message);
             }
             return 0;
+        }
+        private static void Save_Bad_Data(List<BaseInfo> data, string outputPath)
+        {
+            if (data == null || !data.Any())
+            {
+                return;
+            }
+
+            using (var workbook = new XLWorkbook())
+            {
+                var worksheet = workbook.AddWorksheet("Kwalifikacje");
+                worksheet.Cell(1, 1).Value = "Lp";
+                worksheet.Cell(1, 2).Value = "Kod";
+                worksheet.Cell(1, 3).Value = "Nazwisko";
+                worksheet.Cell(1, 4).Value = "Imię";
+                worksheet.Cell(1, 5).Value = "Nazwa szkolenia";
+                worksheet.Cell(1, 6).Value = "Data rozpoczęcia";
+                worksheet.Cell(1, 7).Value = "Data zakończenia";
+                worksheet.Cell(1, 8).Value = "Data ważności";
+
+                for (int i = 1; i <= data.Count; i++)
+                {
+                    worksheet.Cell(1 + i, 1).Value = i;
+                    worksheet.Cell(1 + i, 2).Value = data[i - 1].Kod;
+                    worksheet.Cell(1 + i, 3).Value = data[i - 1].Nazwisko;
+                    worksheet.Cell(1 + i, 4).Value = data[i - 1].Imie;
+
+                    var kwalifikacje = data[i - 1] as Kwalifikacje;
+                    if (kwalifikacje != null)
+                    {
+                        worksheet.Cell(1 + i, 5).Value = kwalifikacje.Nazwa_szkolenia;
+                        if (kwalifikacje.Data_rozpoczecia != DateTime.MinValue)
+                        {
+                            worksheet.Cell(1 + i, 6).Value = kwalifikacje.Data_rozpoczecia;
+                        }
+                        if (kwalifikacje.Data_zakonczenia != DateTime.MinValue)
+                        {
+                            worksheet.Cell(1 + i, 7).Value = kwalifikacje.Data_zakonczenia;
+                        }
+                        if (kwalifikacje.Data_waznosci != DateTime.MinValue)
+                        {
+                            worksheet.Cell(1 + i, 8).Value = kwalifikacje.Data_waznosci;
+                        }
+                    }
+                }
+
+                try
+                {
+                    if(!Directory.Exists(outputPath + "\\Bad_Data"))
+                    {
+                        Directory.CreateDirectory(outputPath + "\\Bad_Data");
+                    }
+                    workbook.SaveAs(outputPath + "\\Bad_Data\\Bad_Data.xlsx");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Wystąpił błąd podczas zapisywania pliku z błędnymi danymi: {ex.Message}");
+                    throw new Exception($"Wystąpił błąd podczas zapisywania pliku z błędnymi danymi: {ex.Message}");
+                }
+            }
         }
         private static int Get_Typ_Zakladki(IXLWorksheet worksheet)
         {
@@ -292,6 +354,21 @@ INSERT INTO [CDN].[Uprawnienia]
         {
             var result = new List<BaseInfo>();
             int i = 2;
+            BaseInfo Init()
+            {
+                if (Typ == 1)
+                {
+                    return new PPK();
+                }else if (Typ == 2)
+                {
+                    return new LimityNiobecnosci();
+                }else if (Typ == 3)
+                {
+                    return new Kwalifikacje();
+                }
+                throw new Exception("Nieznany typ pliku");
+            }
+
             if (Typ == 3)
             {
                 while (true)
@@ -310,7 +387,7 @@ INSERT INTO [CDN].[Uprawnienia]
                         var val2 = worksheet.Cell(i, 6).GetFormattedString().Trim();
                         var val3 = worksheet.Cell(i, 7).GetFormattedString().Trim();
                         var val4 = worksheet.Cell(i, 8).GetFormattedString().Trim();
-                        var obj = new Kwalifikacje();
+                        var obj = Init();
                         obj.Load_Info_From_Values(Lp, Kod, Nazwisko, Imie, val1, val2, val3, val4);
                         result.Add(obj);
                     }
@@ -319,31 +396,35 @@ INSERT INTO [CDN].[Uprawnienia]
             }
             return result;
         }
-        private static void Insert_To_Db(List<List<BaseInfo>> Objects, string cf, string cp)
+        private static List<BaseInfo> Insert_To_Db(List<List<BaseInfo>> Objects, string folder, string file_path)
         {
-            using (SqlConnection connection = new SqlConnection(ConnectionString))
+            var niewpisanedane = new List<BaseInfo>();
+            foreach (var ObjectList in Objects)
             {
-                connection.Open();
-                SqlTransaction transaction = connection.BeginTransaction();
-                foreach (var ObjectList in Objects)
+                foreach (var Data in ObjectList)
                 {
-                    foreach (var Data in ObjectList)
+                    try
                     {
-                        try
+                        using (var connection = new SqlConnection(ConnectionString))
                         {
-                            Data.Make_Insert_Command(transaction, connection, cf, cp);
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine(ex.Message);
-                            throw;
+                            connection.Open();
+                            using (var transaction = connection.BeginTransaction())
+                            {
+                                Data.Make_Insert_Command(transaction, connection, folder, file_path);
+                                transaction.Commit();
+                            }
                         }
                     }
+                    catch (Exception ex)
+                    {
+                        niewpisanedane.Add(Data);
+                        Console.WriteLine(ex.Message);
+                        SaveErrorToFile(ex.Message, folder, file_path);
+                    }
                 }
-                transaction.Commit();
-                connection.Close();
-                Console.WriteLine("Poprawnie dodano dane do bazy");
             }
+            Console.WriteLine("Poprawnie dodano dane do bazy");
+            return niewpisanedane;
         }
         private static int? Czy_Istnieje_Pracownik(int Kod)
         {
@@ -371,7 +452,7 @@ INSERT INTO [CDN].[Uprawnienia]
                 throw;
             }
         }
-        private static void SaveErrorToFile(string Value, string nazwaPlkiu, string savePath) {
+        private static void SaveErrorToFile(string Value, string savePath, string nazwaPlkiu ) {
             try {
                 var filePath = Path.Combine(savePath, "Errors.txt");
                 if (!File.Exists(filePath))
@@ -379,11 +460,25 @@ INSERT INTO [CDN].[Uprawnienia]
                     var fs = File.Create(filePath);
                     fs.Dispose();
                 }
-                File.AppendAllText(filePath, Value + " z pliku: " + nazwaPlkiu + Environment.NewLine);
+                File.AppendAllText(filePath, Value + Environment.NewLine);
             } catch (Exception ex)
             {
                 Console.WriteLine("Błąd zapisywania errora do pliku: " + ex.Message);
             }
+        }
+        private static void MoveProcessedFile(string filepath, string folder)
+        {
+            string processedFolder = Path.Combine(folder, "Processed_Files");
+            if (!Directory.Exists(processedFolder))
+            {
+                Directory.CreateDirectory(processedFolder);
+            }
+            string destinationPath = Path.Combine(processedFolder, Path.GetFileName(filepath));
+            if (File.Exists(destinationPath))
+            {
+                File.Delete(destinationPath);
+            }
+            File.Move(filepath, destinationPath);
         }
     }
 }
