@@ -12,7 +12,7 @@
 
    Edytujemy plik `Config.json`:
 
-   **Przed doaniem:**
+   **Przed dodaniem:**
    ```json
    {
      "Folders_With_Files": [
