@@ -1,0 +1,6 @@
+{
+  "Folders_With_Files": [
+    "E:\\ITEGER\\Praca\\BhpReader\\Files"
+  ],
+  "ConnectionString": "Server=ITEGERNT;Database=CDN_Wars_prod_ITEGER;User Id=sa;Password=cdn;Encrypt=True;TrustServerCertificate=True;"
+}
